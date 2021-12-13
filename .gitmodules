@@ -1,0 +1,3 @@
+[submodule "extern/metall"]
+	path = extern/metall
+	url = https://github.com/LLNL/metall.git

@@ -7,7 +7,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/CMakeModules)
 #
 option(CMAKE_INSTALL_RPATH_USE_LINK_PATH "Use Rpath for dependencies." TRUE)
 option(HAVOQGT_BUILD_TEST "Build HAVOQGT tests." TRUE)
-set(METALL_ROOT "" CACHE PATH "Metall installed root directory")
+set(METALL_ROOT "extern/metall" CACHE PATH "Metall installed root directory")
 option(USE_UMAP "Use Umap instead of the system mmap" OFF)
 set(UMAP_ROOT "" CACHE PATH "UMap installed root directory")
 option(USE_HDF5 "Build executable(s) that use HDF5" OFF)
