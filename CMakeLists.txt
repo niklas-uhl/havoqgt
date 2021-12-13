@@ -31,9 +31,10 @@ endmacro()
 #
 # PThreads is required
 #
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package (Threads)
 macro(include_link_threads target)
-  target_link_libraries(${target} ${CMAKE_THREAD_LIBS_INIT})
+  target_link_libraries(${target} Threads::Threads)
 endmacro()
 
 
@@ -44,6 +45,7 @@ find_package( Boost )
 macro(include_link_boost target)
   include_directories(${Boost_INCLUDE_DIRS})
   target_link_libraries(${target} ${Boost_LIBRARIES})
+  target_compile_definitions(${target} PUBLIC BOOST_BIND_GLOBAL_PLACEHOLDERS=1)
 endmacro() 
 
 #
@@ -59,6 +61,7 @@ endmacro()
 check_symbol_exists(posix_fallocate "fcntl.h" HAVE_POSIX_FALLOCATE)
 if (HAVE_POSIX_FALLOCATE)
   add_definitions(-DHAVE_POSIX_FALLOCATE)
+  link_libraries(rt)
 endif()
 
 #

@@ -116,10 +116,13 @@ int main(int argc, char** argv) {
     }
     graph->print_graph_statistics();
     MPI_Barrier(MPI_COMM_WORLD);
+    double start = MPI_Wtime();
 
     uint64_t count = new_triangle_count(*graph, stat_filename.c_str());
+    double end = MPI_Wtime();
     if (mpi_rank == 0) {
       std::cout << "Graph has " << count << " triangles." << std::endl;
+      std::cout << "RESULT couting took " << end - start << " s" << std::endl;
     }
 
   }  // END Main MPI
