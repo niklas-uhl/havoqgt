@@ -52,6 +52,7 @@ endmacro()
 #  stdc++fs is required
 #
 macro(include_link_stdcppfs target)
+  set_target_properties(${target} PROPERTIES CXX_STANDARD 17)
   target_link_libraries(${target} stdc++fs)
 endmacro()
 
