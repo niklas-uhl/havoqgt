@@ -16,7 +16,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <strstream>
+#include <sstream>
 
 namespace havoqgt {
 

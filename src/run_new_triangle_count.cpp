@@ -6,6 +6,7 @@
 #include <havoqgt/cache_utilities.hpp>
 #include <havoqgt/delegate_partitioned_graph.hpp>
 #include <havoqgt/new_triangle_count.hpp>
+#include <havoqgt/graph_input_adaptor.hpp>
 
 #include <boost/bind.hpp>
 #include <boost/function.hpp>
@@ -105,24 +106,28 @@ int main(int argc, char** argv) {
       distributed_db::transfer(backup_filename.c_str(), graph_input.c_str());
     }
 
-    distributed_db ddb(db_open_read_only(), graph_input.c_str());
+    auto graph  = havoqgt::extension::read_graph(graph_input);
+    // distributed_db ddb(db_open_read_only(), graph_input.c_str());
 
-    auto graph = ddb.get_manager()->find<graph_type>("graph_obj").first;
-    assert(graph != nullptr);
+    // auto graph = ddb.get_manager()->find<graph_type>("graph_obj").first;
+    // assert(graph != nullptr);
 
     MPI_Barrier(MPI_COMM_WORLD);
     if (mpi_rank == 0) {
       std::cout << "Graph Loaded Ready." << std::endl;
     }
-    graph->print_graph_statistics();
+    graph.print_graph_statistics();
     MPI_Barrier(MPI_COMM_WORLD);
     double start = MPI_Wtime();
 
-    uint64_t count = new_triangle_count(*graph, stat_filename.c_str());
+    uint64_t count = new_triangle_count(graph, stat_filename.c_str());
     double end = MPI_Wtime();
     if (mpi_rank == 0) {
       std::cout << "Graph has " << count << " triangles." << std::endl;
-      std::cout << "RESULT couting took " << end - start << " s" << std::endl;
+      std::cout << "RESULT total_time= " << end - start 
+	      << " ranks=" << mpi_size 
+	      << " triangles=" << count
+	      << std::endl;
     }
 
   }  // END Main MPI

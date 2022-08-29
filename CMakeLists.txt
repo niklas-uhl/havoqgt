@@ -12,6 +12,12 @@ option(USE_UMAP "Use Umap instead of the system mmap" OFF)
 set(UMAP_ROOT "" CACHE PATH "UMap installed root directory")
 option(USE_HDF5 "Build executable(s) that use HDF5" OFF)
 
+
+add_subdirectory(extern/KaGen)
+macro(include_link_kagen target)
+  target_link_libraries(${target} KaGen::KaGen)
+endmacro()
+
 #
 # Main Inlucde directory
 #

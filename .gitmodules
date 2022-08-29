@@ -1,3 +1,6 @@
 [submodule "extern/metall"]
 	path = extern/metall
 	url = https://github.com/LLNL/metall.git
+[submodule "extern/KaGen"]
+	path = extern/KaGen
+	url = https://github.com/sebalamm/KaGen
