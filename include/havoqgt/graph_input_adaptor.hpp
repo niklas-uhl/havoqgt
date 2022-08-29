@@ -11,6 +11,34 @@
 #include <havoqgt/cache_utilities.hpp>
 namespace havoqgt::extension {
 
+enum class Generator {
+  none,
+  rgg_2d,
+  rdg_2d,
+  gnm,
+  rmat,
+  rhg
+};
+
+struct Config {
+  Generator gen = Generator::none;
+  unsigned long long gen_n = 10;
+  unsigned long long gen_m = 14;
+  double gen_gamma = 3.0;
+  bool read_directly = false;
+  bool allocate_directly = false;
+  uint64_t delegate_threshold = 1048576;
+  double gbyte_per_rank   = 0.25;
+  uint64_t partition_passes = 1;
+  uint64_t chunk_size       = 8 * 1024;
+  bool undirected       = false;
+};
+
+const std::map<std::string, Generator> gen_map = {
+    {"none", Generator::none},     {"rgg_2d", Generator::rgg_2d},
+    {"rdg_2d", Generator::rdg_2d}, {"gnm", Generator::gnm},
+    {"rmat", Generator::rmat},     {"rhg", Generator::rhg}};
+
 struct BinaryGraphEdgeAdaptor {
   using value_type = std::tuple<uint64_t, uint64_t, double>;
   BinaryGraphEdgeAdaptor(std::string const& file, MPI_Comm comm) {
@@ -115,23 +143,16 @@ struct BinaryGraphEdgeAdaptor {
   size_t head_size;
 };
 
-struct Config {
-  uint64_t delegate_threshold = 1048576;
-  double gbyte_per_rank   = 0.25;
-  uint64_t partition_passes = 1;
-  uint64_t chunk_size       = 8 * 1024;
-  bool undirected       = false;
-};
 
-typedef delegate_partitioned_graph<std::allocator<std::byte>> graph_type;
+using graph_type = delegate_partitioned_graph<std::allocator<std::byte>>;
 
 typedef double                         edge_data_type;
-typedef std::allocator<edge_data_type> edge_data_allocator_type;
 
-graph_type read_graph(std::string const& input_filename) {
+using edge_data_allocator_type = std::allocator<edge_data_type>;
+
+graph_type read_graph(std::string const& input_filename, Config const& conf) {
   int mpi_rank = comm_world().rank();
   int mpi_size = comm_world().size();
-  Config conf;
 
   if (mpi_rank == 0) {
     std::cout << "MPI initialized with " << mpi_size << " ranks." << std::endl;
@@ -150,7 +171,6 @@ graph_type read_graph(std::string const& input_filename) {
   // distributed_db ddb(db_create(), output_filename.c_str());
   std::allocator<std::byte> alloc;
 
-  auto edge_data = graph_type::edge_data<edge_data_type, edge_data_allocator_type>(alloc);
   // auto edge_data_ptr =
   //     ddb.get_manager()
   //         ->construct<
@@ -158,31 +178,55 @@ graph_type read_graph(std::string const& input_filename) {
   //             "graph_edge_data_obj")(ddb.get_allocator());
 
   // Setup edge list reader
-  auto inputs = std::vector {{input_filename}};
   // havoqgt::parallel_edge_list_reader<edge_data_type> pelr(inputs,
                                                           // conf.undirected);
   // bool has_edge_data = pelr.has_edge_data();
-  std::vector<std::tuple<uint64_t, uint64_t, double>> edge_list;
-  std::vector<uint64_t> vtxdist;
-  {
-    // kagen::KaGen kagen(MPI_COMM_WORLD);
-    // kagen.EnableBasicStatistics();
-    // auto result = kagen.GenerateRGG2D_NM(1 << 10, 1<<12);
-    // vtxdist = kagen::BuildVertexDistribution<uint64_t>(result, MPI_UINT64_T, MPI_COMM_WORLD);
+  if (conf.gen != Generator::none) {
+    std::vector<std::tuple<uint64_t, uint64_t, double>> edge_list;
+    std::vector<uint64_t>                               vtxdist;
+    kagen::KaGen kagen(MPI_COMM_WORLD);
+    kagen.EnableBasicStatistics();
+    unsigned long long               n = 1ull << conf.gen_n;
+    unsigned long long               m = 1ull << conf.gen_m;
+    kagen::KaGenResult result;
+    switch(conf.gen) {
+      case Generator::rgg_2d:
+        result = kagen.GenerateRGG2D_NM(n, m);
+        break;
+      case Generator::rhg:
+      result = kagen.GenerateRHG_NM(conf.gen_gamma, n, m);
+        break;
+      case Generator::rdg_2d:
+        result = kagen.GenerateRDG2D(n, false);
+        break;
+      case Generator::gnm:
+        result = kagen.GenerateUndirectedGNM(n, m);
+        break;
+      case Generator::rmat:
+        result = kagen.GenerateRMAT(n, m, 0.57, 0.19, 0.19);
+        break;
+      case Generator::none:
+        break;
+    }
+    vtxdist = kagen::BuildVertexDistribution<uint64_t>(result, MPI_UINT64_T, MPI_COMM_WORLD);
 
-    // if (mpi_rank == 0) {
-    //   std::cout << "Generating new graph." << std::endl;
-    // }
-    // edge_list.reserve(result.edges.size());
-    // for (const auto& [tail, head] : result.edges) {
-    //   edge_list.emplace_back(tail, head, 0.0);
-  //  }
+    edge_list.reserve(result.edges.size());
+    for (const auto& [tail, head] : result.edges) {
+      edge_list.emplace_back(tail, head, 0.0);
+    }
+    auto graph = graph_type(alloc, MPI_COMM_WORLD, edge_list,
+                       vtxdist.back() - 1, conf.delegate_threshold,
+                       conf.partition_passes, conf.chunk_size);
+    return graph;
+  } else {
+    auto                   inputs = std::vector{{input_filename}};
+    BinaryGraphEdgeAdaptor adap(input_filename, MPI_COMM_WORLD);
+    auto graph = graph_type(alloc, MPI_COMM_WORLD, adap,
+                       adap.global_node_count() - 1, conf.delegate_threshold,
+                       conf.partition_passes, conf.chunk_size);
+    return graph;
   }
 
-  BinaryGraphEdgeAdaptor adap(input_filename, MPI_COMM_WORLD);
-  auto graph = graph_type(alloc, MPI_COMM_WORLD, adap, adap.global_node_count() - 1,
-                          conf.delegate_threshold, conf.partition_passes, conf.chunk_size,
-                          edge_data);
   // auto graph = graph_type(alloc, MPI_COMM_WORLD, pelr, pelr.max_vertex_id(),
   //                         conf.delegate_threshold, conf.partition_passes, conf.chunk_size,
   //                         edge_data);
@@ -196,6 +240,6 @@ graph_type read_graph(std::string const& input_filename) {
   //           graph_type::edge_data<edge_data_type, edge_data_allocator_type>>(
   //           "graph_edge_data_obj");
   // }
-  return graph;
 }
+
 }  // namespace havoqgt::extension

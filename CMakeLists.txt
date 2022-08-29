@@ -13,6 +13,7 @@ set(UMAP_ROOT "" CACHE PATH "UMap installed root directory")
 option(USE_HDF5 "Build executable(s) that use HDF5" OFF)
 
 
+find_package(CGAL REQUIRED)
 add_subdirectory(extern/KaGen)
 macro(include_link_kagen target)
   target_link_libraries(${target} KaGen::KaGen)

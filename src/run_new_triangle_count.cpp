@@ -35,8 +35,11 @@ void usage() {
   }
 }
 
-void parse_cmd_line(int argc, char** argv, std::string& input_filename,
-                    std::string& backup_filename, std::string& stat_filename) {
+
+void parse_cmd_line(int argc, char** argv,
+                                  std::string& input_filename,
+                                  std::string& backup_filename,
+                                  std::string& stat_filename, extension::Config& conf) {
   if (comm_world().rank() == 0) {
     std::cout << "CMD line:";
     for (int i = 0; i < argc; ++i) {
@@ -50,18 +53,46 @@ void parse_cmd_line(int argc, char** argv, std::string& input_filename,
 
   char c;
   bool prn_help = false;
-  while ((c = getopt(argc, argv, "i:s:b:h ")) != -1) {
+  while ((c = getopt(argc, argv, "i:das:g:n:m:e:b:h ")) != -1) {
     switch (c) {
       case 'h':
         prn_help = true;
+        break;
+      case 'i':
+        found_input_filename = true;
+        input_filename       = optarg;
         break;
       case 's':
         found_stat_filename = true;
         stat_filename       = optarg;
         break;
-      case 'i':
-        found_input_filename = true;
-        input_filename       = optarg;
+      case 'd':
+        conf.read_directly = true;
+        break;
+      case 'a':
+        conf.allocate_directly = true;
+        break;
+      case 'g':
+        {
+        auto gen_name = std::string(optarg);
+        auto it = extension::gen_map.find(gen_name);
+        if (it == extension::gen_map.end()) {
+          std::cerr << "Invalid generator " << optarg << std::endl;
+          exit(-1);
+          break;
+        }
+        conf.gen = it->second;
+        }
+        break;
+      case 'n':
+        conf.gen_n = atoll(optarg);
+        break;
+      case 'm':
+        conf.gen_m = atoll(optarg);
+        break;
+      case 'e':
+        conf.gen_gamma = atof(optarg);
+        // gen gamma
         break;
       case 'b':
         backup_filename = optarg;
@@ -72,7 +103,7 @@ void parse_cmd_line(int argc, char** argv, std::string& input_filename,
         break;
     }
   }
-  if (prn_help || !found_input_filename || !found_stat_filename) {
+  if (prn_help || (!found_input_filename && conf.gen == extension::Generator::none)) {
     usage();
     exit(-1);
   }
@@ -99,14 +130,15 @@ int main(int argc, char** argv) {
     std::string backup_filename;
     std::string stat_filename;
 
-    parse_cmd_line(argc, argv, graph_input, backup_filename, stat_filename);
+    havoqgt::extension::Config conf;
+    parse_cmd_line(argc, argv, graph_input, backup_filename, stat_filename, conf);
 
     MPI_Barrier(MPI_COMM_WORLD);
     if (backup_filename.size() > 0) {
       distributed_db::transfer(backup_filename.c_str(), graph_input.c_str());
     }
 
-    auto graph  = havoqgt::extension::read_graph(graph_input);
+    auto graph  = havoqgt::extension::read_graph(graph_input, conf);
     // distributed_db ddb(db_open_read_only(), graph_input.c_str());
 
     // auto graph = ddb.get_manager()->find<graph_type>("graph_obj").first;
