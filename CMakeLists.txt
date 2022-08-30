@@ -48,7 +48,7 @@ endmacro()
 #
 # BOOST is required
 #
-find_package( Boost )
+find_package( Boost REQUIRED COMPONENTS headers)
 macro(include_link_boost target)
   include_directories(${Boost_INCLUDE_DIRS})
   target_link_libraries(${target} ${Boost_LIBRARIES})
